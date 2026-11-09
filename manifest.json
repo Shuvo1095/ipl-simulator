@@ -9,5 +9,13 @@
   "start_url": "/",
   "theme_color": "#ffffff",
   "id": "ipl-simulator/",
-  "description": "IPL 2026 Draft and T20 Multiplayer Simulator."
+  "description": "IPL 2026 Draft and T20 Multiplayer Simulator.",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }
