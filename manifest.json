@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "iPL 2026 simulator",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "IPL 2026",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "id": "ipl-simulator/",
+  "description": "IPL 2026 Draft and T20 Multiplayer Simulator."
+}
