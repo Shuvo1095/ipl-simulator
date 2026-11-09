@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IPL 2026 Draft & T20 Multiplayer Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PeerJS for Real-time Online Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        teko: ['Teko', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        iplDark: '#0b0f19',
+                        iplCard: '#151c2c',
+                        iplAccent: '#ffb703',
+                        iplBlue: '#0052cc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 340px;
+            margin: 0 auto;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+        .tab-btn.active {
+            color: #fbbf24;
+            border-bottom-color: #fbbf24;
+        }
+        .score-tab.active {
+            border-bottom: 2px solid #fbbf24;
+            color: #fbbf24;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-trophy text-yellow-400 text-2xl"></i>
+            <span class="font-teko text-2xl tracking-wider font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-amber-200 bg-clip-text text-transparent">IPL 2026 MULTIPLAYER DRAFT</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button onclick="switchTab('online')" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 py-1.5 px-3 rounded-full border border-slate-700 flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-wifi text-emerald-400" id="onlineIndicatorIcon"></i>
+                <span id="navRoomText">Room: Offline</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-slate-900 border-b border-slate-800 grid grid-cols-4 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <button id="tabDraft" onclick="switchTab('draft')" class="tab-btn active py-3 border-b-2 border-transparent flex flex-col items-center justify-center space-y-1">
+            <i class="fa-solid fa-dharmachakra text-base"></i>
+            <span>Draft</span>
+        </button>
+        <button id="tabSquad" onclick="switchTab('squad')" class="tab-btn py-3 border-b-2 border-transparent hover:text-slate-200 flex flex-col items-center justify-center space-y-1">
+            <i class="fa-solid fa-users text-base"></i>
+            <span>Squad (<span id="squadCountNav">0</span>/11)</span>
+        </button>
+        <button id="tabMatch" onclick="switchTab('match')" class="tab-btn py-3 border-b-2 border-transparent hover:text-slate-200 flex flex-col items-center justify-center space-y-1">
+            <i class="fa-solid fa-baseball text-base"></i>
+            <span>Match</span>
+        </button>
+        <button id="tabOnline" onclick="switchTab('online')" class="tab-btn py-3 border-b-2 border-transparent hover:text-slate-200 flex flex-col items-center justify-center space-y-1">
+            <i class="fa-solid fa-globe text-base"></i>
+            <span>Online</span>
+        </button>
+    </nav>
+
+    <!-- Main Dynamic Content Container -->
+    <main class="flex-1 p-3 sm:p-5 max-w-4xl mx-auto w-full">
+        
+        <!-- SECTION 1: DRAFT & WHEEL -->
+        <section id="sectionDraft" class="space-y-4">
+            <!-- Draft Stats Bar -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-900 p-3 rounded-xl border border-slate-800 text-center text-xs">
+                <div>
+                    <span class="text-slate-400 block">Total Players</span>
+                    <span id="statTotal" class="font-bold text-lg text-amber-400">0 / 11</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block">Overseas (Max 4)</span>
+                    <span id="statOverseas" class="font-bold text-lg text-cyan-400">0 / 4</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block">Draft Mode</span>
+                    <span id="statMode" class="font-bold text-sm text-emerald-400 mt-1 block">Solo Mode</span>
+                </div>
+            </div>
+
+            <!-- Spin Wheel Container -->
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center relative overflow-hidden">
+                <h2 class="text-lg font-bold text-slate-200 mb-2 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-dharmachakra text-amber-400"></i> Spin Team Wheel
+                </h2>
+                
+                <div class="canvas-container my-2">
+                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-20 w-0 h-0 border-l-[14px] border-l-transparent border-r-[14px] border-r-transparent border-t-[24px] border-t-amber-400 drop-shadow-md"></div>
+                    <canvas id="wheelCanvas" width="340" height="340" class="mx-auto rounded-full shadow-2xl border-4 border-slate-700"></canvas>
+                </div>
+
+                <div class="flex gap-2 max-w-sm mx-auto mt-3">
+                    <button id="spinBtn" onclick="spinWheel()" class="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-slate-950 font-extrabold rounded-xl shadow-lg transition transform active:scale-95 text-base uppercase tracking-wider flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> SPIN WHEEL
+                    </button>
+                    <button id="autoDraftBtn" onclick="autoPickCompleteSquad()" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-400/40 font-bold rounded-xl transition text-xs uppercase flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto 11
+                    </button>
+                </div>
+            </div>
+
+            <!-- Team Player Selection Modal / Section -->
+            <div id="selectionArea" class="hidden bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <div>
+                        <span class="text-xs text-slate-400 uppercase">Spun Team</span>
+                        <h3 id="spunTeamName" class="text-xl font-bold text-yellow-400">TEAM NAME</h3>
+                    </div>
+                    <span id="spunTeamBadge" class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-bold border border-slate-700">Players Available</span>
+                </div>
+
+                <p class="text-xs text-slate-400">Pick 1 player to add to your XI:</p>
+                <div id="playerOptions" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                    <!-- Player Cards inserted dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: SQUAD & LINEUP MANAGER -->
+        <section id="sectionSquad" class="hidden space-y-4">
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-100">Squad Lineup Manager</h2>
+                    <p class="text-xs text-slate-400">Rearrange players or hit 'Auto Lineup' to form ideal T20 positions.</p>
+                </div>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="autoLineup()" class="flex-1 sm:flex-none px-3.5 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 text-xs font-bold rounded-lg border border-amber-400/40 flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Lineup
+                    </button>
+                    <button onclick="resetSquad()" class="px-3.5 py-2 bg-red-950/60 hover:bg-red-900/60 text-xs font-bold text-red-400 rounded-lg border border-red-800/50 flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-solid fa-trash-can"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- Squad List -->
+            <div id="squadList" class="space-y-2">
+                <!-- Dynamic Squad Items -->
+            </div>
+        </section>
+
+        <!-- SECTION 3: MATCH SIMULATOR & DETAILED SCORECARD -->
+        <section id="sectionMatch" class="hidden space-y-4">
+            <!-- Opponent Selection / Match Setup -->
+            <div id="matchSetup" class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-4">
+                <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-gamepad text-amber-400"></i> Match Setup (T20 Overs)
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                        <span class="text-xs text-slate-400 uppercase block font-bold">Your Squad</span>
+                        <h3 class="text-base font-bold text-amber-400" id="matchUserTeamName">Player 1 Squad</h3>
+                        <p id="matchUserStatus" class="text-xs text-slate-400 mt-1">Ready (11 Players)</p>
+                    </div>
+
+                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                        <label class="text-xs text-slate-400 uppercase block font-bold mb-1">Select Opponent</label>
+                        <select id="opponentSelect" class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg p-2 text-sm focus:outline-none focus:border-amber-400">
+                            <!-- Options dynamically generated -->
+                        </select>
+                    </div>
+                </div>
+
+                <button id="startMatchBtn" onclick="startMatchSimulation()" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 font-extrabold text-slate-950 rounded-xl shadow-lg transition text-base uppercase tracking-wider flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-bolt"></i> START T20 MATCH SIMULATION
+                </button>
+            </div>
+
+            <!-- Live Match & Scorecard Dashboard -->
+            <div id="matchDashboard" class="hidden space-y-4">
+                <!-- Main Match Scorecard Header -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 relative overflow-hidden">
+                    <div class="flex justify-between items-center text-xs font-semibold text-slate-400 border-b border-slate-800/80 pb-2">
+                        <span id="matchInningsLabel" class="text-amber-400 font-bold uppercase">1st Innings</span>
+                        <span id="matchTargetLabel" class="text-slate-300 font-mono">T20 Match</span>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 id="battingTeamName" class="text-xl font-bold text-slate-100">Team A</h3>
+                            <div class="text-4xl font-extrabold text-amber-400 font-teko tracking-wide">
+                                <span id="runsScored">0</span>/<span id="wicketsLost">0</span>
+                                <span class="text-lg text-slate-400 font-sans font-normal ml-2">(<span id="oversCompleted">0.0</span>/20.0 ov)</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block font-semibold uppercase">CRR</span>
+                            <span id="currentRunRate" class="text-xl font-bold text-slate-200 font-mono">0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Current Batsmen & Bowlers Box -->
+                    <div class="grid grid-cols-2 gap-2 bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-xs">
+                        <div class="space-y-1">
+                            <span class="text-slate-400 block text-[10px] font-bold uppercase">Current Batsmen</span>
+                            <div class="flex justify-between items-center pr-2">
+                                <span id="strikerName" class="font-bold text-amber-400 truncate">Striker *</span>
+                                <span id="strikerStats" class="font-mono text-slate-200">0 (0)</span>
+                            </div>
+                            <div class="flex justify-between items-center pr-2">
+                                <span id="nonStrikerName" class="text-slate-300 truncate">Non-Striker</span>
+                                <span id="nonStrikerStats" class="font-mono text-slate-400">0 (0)</span>
+                            </div>
+                        </div>
+                        <div class="space-y-1 border-l border-slate-800 pl-2">
+                            <span class="text-slate-400 block text-[10px] font-bold uppercase">Current Bowler</span>
+                            <div class="flex justify-between items-center">
+                                <span id="bowlerName" class="font-bold text-cyan-400 truncate">Bowler</span>
+                                <span id="bowlerStats" class="font-mono text-slate-200">0/0 (0.0)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Match Action Controls -->
+                    <div class="flex gap-2 pt-1">
+                        <button id="nextBallBtn" onclick="simNextBall()" class="flex-1 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-lg">
+                            <i class="fa-solid fa-play"></i> SIM BALL
+                        </button>
+                        <button id="autoSimBtn" onclick="toggleAutoSim()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition border border-slate-700">
+                            <i class="fa-solid fa-forward-fast"></i> AUTO PLAY
+                        </button>
+                    </div>
+                </div>
+
+                <!-- DETAILED TABBED SCORECARD (Cricbuzz Style) -->
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+                    <div class="flex border-b border-slate-800 text-xs uppercase font-bold text-slate-400 bg-slate-950">
+                        <button id="scoreTab1" onclick="switchScorecardTab(1)" class="score-tab active flex-1 py-3 text-center transition">
+                            1st Innings Scorecard
+                        </button>
+                        <button id="scoreTab2" onclick="switchScorecardTab(2)" class="score-tab flex-1 py-3 text-center transition">
+                            2nd Innings Scorecard
+                        </button>
+                        <button id="scoreTabComm" onclick="switchScorecardTab('comm')" class="score-tab flex-1 py-3 text-center transition">
+                            Commentary Log
+                        </button>
+                    </div>
+
+                    <!-- Scorecard Innings 1 View -->
+                    <div id="scoreView1" class="p-3 space-y-4">
+                        <div>
+                            <h4 id="inn1TeamTitle" class="text-xs font-bold text-amber-400 uppercase mb-2">1st Innings Batting Scorecard</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs font-mono">
+                                    <thead class="bg-slate-950 text-slate-400 font-sans border-b border-slate-800">
+                                        <tr>
+                                            <th class="py-2 px-2">Batter</th>
+                                            <th class="py-2 px-1 text-right">R</th>
+                                            <th class="py-2 px-1 text-right">B</th>
+                                            <th class="py-2 px-1 text-right">4s</th>
+                                            <th class="py-2 px-1 text-right">6s</th>
+                                            <th class="py-2 px-1 text-right">SR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inn1BattingBody" class="divide-y divide-slate-800/50">
+                                        <!-- Dynamic Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xs font-bold text-cyan-400 uppercase mb-2">Bowling Figures</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs font-mono">
+                                    <thead class="bg-slate-950 text-slate-400 font-sans border-b border-slate-800">
+                                        <tr>
+                                            <th class="py-2 px-2">Bowler</th>
+                                            <th class="py-2 px-1 text-right">O</th>
+                                            <th class="py-2 px-1 text-right">R</th>
+                                            <th class="py-2 px-1 text-right">W</th>
+                                            <th class="py-2 px-1 text-right">Econ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inn1BowlingBody" class="divide-y divide-slate-800/50">
+                                        <!-- Dynamic Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scorecard Innings 2 View -->
+                    <div id="scoreView2" class="p-3 space-y-4 hidden">
+                        <div>
+                            <h4 id="inn2TeamTitle" class="text-xs font-bold text-amber-400 uppercase mb-2">2nd Innings Batting Scorecard</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs font-mono">
+                                    <thead class="bg-slate-950 text-slate-400 font-sans border-b border-slate-800">
+                                        <tr>
+                                            <th class="py-2 px-2">Batter</th>
+                                            <th class="py-2 px-1 text-right">R</th>
+                                            <th class="py-2 px-1 text-right">B</th>
+                                            <th class="py-2 px-1 text-right">4s</th>
+                                            <th class="py-2 px-1 text-right">6s</th>
+                                            <th class="py-2 px-1 text-right">SR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inn2BattingBody" class="divide-y divide-slate-800/50">
+                                        <!-- Dynamic Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-xs font-bold text-cyan-400 uppercase mb-2">Bowling Figures</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs font-mono">
+                                    <thead class="bg-slate-950 text-slate-400 font-sans border-b border-slate-800">
+                                        <tr>
+                                            <th class="py-2 px-2">Bowler</th>
+                                            <th class="py-2 px-1 text-right">O</th>
+                                            <th class="py-2 px-1 text-right">R</th>
+                                            <th class="py-2 px-1 text-right">W</th>
+                                            <th class="py-2 px-1 text-right">Econ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inn2BowlingBody" class="divide-y divide-slate-800/50">
+                                        <!-- Dynamic Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Commentary Log View -->
+                    <div id="scoreViewComm" class="p-4 hidden">
+                        <div id="commentaryBox" class="h-64 overflow-y-auto custom-scrollbar space-y-2 text-xs text-slate-300 font-mono pr-2">
+                            <p class="text-slate-500 italic">Match initialized. Click 'SIM BALL' to begin commentary.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 4: REAL-TIME ONLINE MULTIPLAYER -->
+        <section id="sectionOnline" class="hidden space-y-4">
+            <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
+                <div class="flex items-center space-x-3 border-b border-slate-800 pb-3">
+                    <div class="p-3 bg-amber-400/10 text-amber-400 rounded-xl">
+                        <i class="fa-solid fa-wifi text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-bold text-slate-100">Live Peer-to-Peer Online Draft & Match</h2>
+                        <p class="text-xs text-slate-400">Play live online draft and custom matches with your friends!</p>
+                    </div>
+                </div>
+
+                <!-- User Profile ID Card -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-500 block">Your Peer Online ID</span>
+                        <span id="myPeerIdDisplay" class="font-mono text-sm text-amber-400 font-bold">Connecting server...</span>
+                    </div>
+                    <button onclick="copyPeerId()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy"></i> Copy ID
+                    </button>
+                </div>
+
+                <!-- Join / Host Room -->
+                <div class="space-y-3 pt-2">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Multiplayer Connection</h3>
+                    
+                    <div class="flex gap-2">
+                        <input type="text" id="friendPeerIdInput" placeholder="Paste Friend's Peer ID..." class="flex-1 bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl px-3.5 py-3 focus:outline-none focus:border-amber-400 font-mono">
+                        <button onclick="connectToFriend()" class="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white rounded-xl transition flex items-center gap-1.5 shadow-md">
+                            <i class="fa-solid fa-plug"></i> Connect
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Room Live Status & Sync Dashboard -->
+                <div id="roomStatusArea" class="hidden bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-3">
+                    <div class="flex justify-between items-center text-slate-400 border-b border-slate-800 pb-2">
+                        <span>Connected Peer: <strong id="connectedPeerName" class="text-amber-400 font-mono">---</strong></span>
+                        <span id="p2pStatusBadge" class="text-emerald-400 font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-circle text-[8px] animate-pulse"></i> CONNECTED
+                        </span>
+                    </div>
+
+                    <div class="p-3 bg-slate-900 rounded-lg border border-slate-800 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-300">Friend's Draft XI Status:</span>
+                            <span id="friendSquadCount" class="font-bold text-amber-400">0 / 11 Players</span>
+                        </div>
+                        <button id="challengeFriendBtn" onclick="challengeFriendToMatch()" disabled class="w-full py-2 bg-gradient-to-r from-emerald-500 to-teal-600 opacity-50 font-bold text-slate-950 rounded-lg text-xs transition uppercase">
+                            Play Match vs Friend
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Notification Toast UI -->
+    <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 border border-amber-400/40 text-slate-100 text-xs font-medium px-4 py-2.5 rounded-full shadow-2xl transition transform translate-y-20 opacity-0 pointer-events-none z-50 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-amber-400"></i>
+        <span id="toastMsg">Notification message</span>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        /* ==================== 1. IPL 2026 ROSTER DATA ==================== */
+        const IPL_TEAMS = [
+            {
+                id: 'CSK', name: 'Chennai Super Kings', color: '#facc15', textColor: '#0f172a',
+                roster: [
+                    { name: 'Ruturaj Gaikwad', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Devdutt Padikkal', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Shivam Dube', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'MS Dhoni', role: 'WK-Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Ravindra Jadeja', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Rachin Ravindra', role: 'All-Rounder', pos: 'Opener', overseas: true },
+                    { name: 'Matheesha Pathirana', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Noor Ahmad', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Khaleel Ahmed', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Rahul Chahar', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Sam Curran', role: 'All-Rounder', pos: 'Middle Order', overseas: true }
+                ]
+            },
+            {
+                id: 'RCB', name: 'Royal Challengers Bengaluru', color: '#dc2626', textColor: '#ffffff',
+                roster: [
+                    { name: 'Virat Kohli', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Rajat Patidar', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Phil Salt', role: 'WK-Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Liam Livingstone', role: 'All-Rounder', pos: 'Middle Order', overseas: true },
+                    { name: 'Jitesh Sharma', role: 'WK-Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Tim David', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Krunal Pandya', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Bhuvaneshwar Kumar', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Yash Dayal', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Josh Hazlewood', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Suyash Sharma', role: 'Bowler', pos: 'Bowler', overseas: false }
+                ]
+            },
+            {
+                id: 'MI', name: 'Mumbai Indians', color: '#2563eb', textColor: '#ffffff',
+                roster: [
+                    { name: 'Rohit Sharma', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Suryakumar Yadav', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Tilak Varma', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Hardik Pandya', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Jasprit Bumrah', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Trent Boult', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Will Jacks', role: 'All-Rounder', pos: 'Opener', overseas: true },
+                    { name: 'Mitchell Santner', role: 'All-Rounder', pos: 'Bowler', overseas: true },
+                    { name: 'Ryan Rickelton', role: 'WK-Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Deepak Chahar', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Naman Dhir', role: 'Batsman', pos: 'Middle Order', overseas: false }
+                ]
+            },
+            {
+                id: 'KKR', name: 'Kolkata Knight Riders', color: '#7e22ce', textColor: '#ffffff',
+                roster: [
+                    { name: 'Rinku Singh', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Sunil Narine', role: 'All-Rounder', pos: 'Opener', overseas: true },
+                    { name: 'Andre Russell', role: 'All-Rounder', pos: 'Middle Order', overseas: true },
+                    { name: 'Varun Chakravarthy', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Venkatesh Iyer', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Quinton de Kock', role: 'WK-Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Anrich Nortje', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Harshit Rana', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Ramandeep Singh', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Vaibhav Arora', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Angkrish Raghuvanshi', role: 'Batsman', pos: 'Middle Order', overseas: false }
+                ]
+            },
+            {
+                id: 'DC', name: 'Delhi Capitals', color: '#0284c7', textColor: '#ffffff',
+                roster: [
+                    { name: 'Axar Patel', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Kuldeep Yadav', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Tristan Stubbs', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'KL Rahul', role: 'WK-Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Mitchell Starc', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Harry Brook', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Mukesh Kumar', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'T Natarajan', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Sameer Rizvi', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Faf du Plessis', role: 'Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Ashutosh Sharma', role: 'Batsman', pos: 'Middle Order', overseas: false }
+                ]
+            },
+            {
+                id: 'RR', name: 'Rajasthan Royals', color: '#ec4899', textColor: '#ffffff',
+                roster: [
+                    { name: 'Sanju Samson', role: 'WK-Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Yashasvi Jaiswal', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Riyan Parag', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Dhruv Jurel', role: 'WK-Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Shimron Hetmyer', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Sandeep Sharma', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Jofra Archer', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Wanindu Hasaranga', role: 'All-Rounder', pos: 'Bowler', overseas: true },
+                    { name: 'Maheesh Theekshana', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Tushar Deshpande', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Nitish Rana', role: 'Batsman', pos: 'Middle Order', overseas: false }
+                ]
+            },
+            {
+                id: 'SRH', name: 'Sunrisers Hyderabad', color: '#f97316', textColor: '#ffffff',
+                roster: [
+                    { name: 'Pat Cummins', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Abhishek Sharma', role: 'All-Rounder', pos: 'Opener', overseas: false },
+                    { name: 'Travis Head', role: 'Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Heinrich Klaasen', role: 'WK-Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Nitish Kumar Reddy', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Mohammed Shami', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Ishan Kishan', role: 'WK-Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Adam Zampa', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Harshal Patel', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Abhinav Manohar', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Jaydev Unadkat', role: 'Bowler', pos: 'Bowler', overseas: false }
+                ]
+            },
+            {
+                id: 'GT', name: 'Gujarat Titans', color: '#1e3a8a', textColor: '#ffffff',
+                roster: [
+                    { name: 'Shubman Gill', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Rashid Khan', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Sai Sudharsan', role: 'Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Rahul Tewatia', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Jos Buttler', role: 'WK-Batsman', pos: 'Opener', overseas: true },
+                    { name: 'Kagiso Rabada', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Mohammed Siraj', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Prasidh Krishna', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Washington Sundar', role: 'All-Rounder', pos: 'Middle Order', overseas: false },
+                    { name: 'Glenn Phillips', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Shahrukh Khan', role: 'Batsman', pos: 'Middle Order', overseas: false }
+                ]
+            },
+            {
+                id: 'LSG', name: 'Lucknow Super Giants', color: '#06b6d4', textColor: '#0f172a',
+                roster: [
+                    { name: 'Nicholas Pooran', role: 'WK-Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Ravi Bishnoi', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Mayank Yadav', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Rishabh Pant', role: 'WK-Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'David Miller', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Aiden Markram', role: 'Batsman', pos: 'Middle Order', overseas: true },
+                    { name: 'Mitchell Marsh', role: 'All-Rounder', pos: 'Opener', overseas: true },
+                    { name: 'Avesh Khan', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Abdul Samad', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Ayush Badoni', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Akash Deep', role: 'Bowler', pos: 'Bowler', overseas: false }
+                ]
+            },
+            {
+                id: 'PBKS', name: 'Punjab Kings', color: '#e11d48', textColor: '#ffffff',
+                roster: [
+                    { name: 'Shreyas Iyer', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Arshdeep Singh', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Yuzvendra Chahal', role: 'Bowler', pos: 'Bowler', overseas: false },
+                    { name: 'Marcus Stoinis', role: 'All-Rounder', pos: 'Middle Order', overseas: true },
+                    { name: 'Glenn Maxwell', role: 'All-Rounder', pos: 'Middle Order', overseas: true },
+                    { name: 'Prabhsimran Singh', role: 'WK-Batsman', pos: 'Opener', overseas: false },
+                    { name: 'Shashank Singh', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Marco Jansen', role: 'All-Rounder', pos: 'Bowler', overseas: true },
+                    { name: 'Lockie Ferguson', role: 'Bowler', pos: 'Bowler', overseas: true },
+                    { name: 'Nehal Wadhera', role: 'Batsman', pos: 'Middle Order', overseas: false },
+                    { name: 'Yash Thakur', role: 'Bowler', pos: 'Bowler', overseas: false }
+                ]
+            }
+        ];
+
+        /* ==================== 2. GLOBAL APP STATE ==================== */
+        let userSquad = [];
+        let currentSpunTeam = null;
+        let isSpinning = false;
+        let startAngle = 0;
+        let spinTimeout = null;
+
+        // PeerJS Multiplayer State
+        let peer = null;
+        let p2pConn = null;
+        let friendSquad = [];
+
+        // Match Engine State
+        let matchState = {
+            active: false,
+            isOnlineMatch: false,
+            inn: 1,
+            runs: 0,
+            wickets: 0,
+            overs: 0,
+            balls: 0,
+            target: 0,
+            strikerIdx: 0,
+            nonStrikerIdx: 1,
+            bowlerIdx: 10,
+            battingTeam: [],
+            bowlingTeam: [],
+            oppTeamObj: null,
+            inn1Batting: [],
+            inn1Bowling: [],
+            inn2Batting: [],
+            inn2Bowling: [],
+            autoInterval: null
+        };
+
+        /* ==================== 3. INITIALIZATION ==================== */
+        window.onload = function() {
+            drawWheel();
+            populateOpponents();
+            updateSquadUI();
+            initPeerJS();
+        };
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        function switchTab(tab) {
+            ['draft', 'squad', 'match', 'online'].forEach(t => {
+                const sec = document.getElementById('section' + t.charAt(0).toUpperCase() + t.slice(1));
+                const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (t === tab) {
+                    sec.classList.remove('hidden');
+                    btn.classList.add('active');
+                } else {
+                    sec.classList.add('hidden');
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        /* ==================== 4. REAL-TIME PEER-TO-PEER MULTIPLAYER ==================== */
+        function initPeerJS() {
+            peer = new Peer();
+
+            peer.on('open', (id) => {
+                document.getElementById('myPeerIdDisplay').innerText = id;
+            });
+
+            peer.on('connection', (conn) => {
+                p2pConn = conn;
+                setupConnectionListeners();
+                showToast('Friend connected to your room!');
+            });
+
+            peer.on('error', (err) => {
+                showToast('Online connection error: ' + err.type);
+            });
+        }
+
+        function connectToFriend() {
+            const friendId = document.getElementById('friendPeerIdInput').value.trim();
+            if (!friendId) {
+                showToast('Please enter a valid Friend Peer ID!');
+                return;
+            }
+
+            p2pConn = peer.connect(friendId);
+            setupConnectionListeners();
+        }
+
+        function setupConnectionListeners() {
+            p2pConn.on('open', () => {
+                document.getElementById('navRoomText').innerText = 'Room: Connected';
+                document.getElementById('roomStatusArea').classList.remove('hidden');
+                document.getElementById('connectedPeerName').innerText = p2pConn.peer;
+                document.getElementById('statMode').innerText = 'Online Peer';
+                showToast('Connected to Multiplayer Room!');
+                
+                // Sync Squad with Peer
+                sendPeerData({ type: 'SYNC_SQUAD', squad: userSquad });
+            });
+
+            p2pConn.on('data', (data) => {
+                handlePeerData(data);
+            });
+
+            p2pConn.on('close', () => {
+                document.getElementById('navRoomText').innerText = 'Room: Offline';
+                document.getElementById('roomStatusArea').classList.add('hidden');
+                showToast('Friend disconnected.');
+            });
+        }
+
+        function copyPeerId() {
+            const id = document.getElementById('myPeerIdDisplay').innerText;
+            if (!id || id.includes('Connecting')) return;
+            navigator.clipboard.writeText(id);
+            showToast('Peer ID copied to clipboard!');
+        }
+
+        function sendPeerData(data) {
+            if (p2pConn && p2pConn.open) {
+                p2pConn.send(data);
+            }
+        }
+
+        function handlePeerData(data) {
+            if (data.type === 'SYNC_SQUAD') {
+                friendSquad = data.squad;
+                document.getElementById('friendSquadCount').innerText = `${friendSquad.length} / 11 Players`;
+                
+                const challengeBtn = document.getElementById('challengeFriendBtn');
+                if (friendSquad.length === 11 && userSquad.length === 11) {
+                    challengeBtn.disabled = false;
+                    challengeBtn.classList.remove('opacity-50');
+                }
+            } else if (data.type === 'START_ONLINE_MATCH') {
+                friendSquad = data.squad;
+                startMatchSimulation(true);
+            }
+        }
+
+        function challengeFriendToMatch() {
+            if (userSquad.length < 11 || friendSquad.length < 11) {
+                showToast('Both players must complete 11-player squad draft!');
+                return;
+            }
+
+            sendPeerData({ type: 'START_ONLINE_MATCH', squad: userSquad });
+            startMatchSimulation(true);
+        }
+
+        /* ==================== 5. WHEEL & AUTO DRAFT LOGIC ==================== */
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const numTeams = IPL_TEAMS.length;
+        const arc = Math.PI / (numTeams / 2);
+
+        function drawWheel() {
+            const outsideRadius = 160;
+            const textRadius = 110;
+            const insideRadius = 40;
+
+            ctx.clearRect(0, 0, 340, 340);
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 3;
+
+            for (let i = 0; i < numTeams; i++) {
+                const angle = startAngle + i * arc;
+                ctx.fillStyle = IPL_TEAMS[i].color;
+
+                ctx.beginPath();
+                ctx.arc(170, 170, outsideRadius, angle, angle + arc, false);
+                ctx.arc(170, 170, insideRadius, angle + arc, angle, true);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.save();
+                ctx.fillStyle = IPL_TEAMS[i].textColor;
+                ctx.translate(170 + Math.cos(angle + arc / 2) * textRadius, 170 + Math.sin(angle + arc / 2) * textRadius);
+                ctx.rotate(angle + arc / 2 + Math.PI / 2);
+                ctx.font = 'bold 16px Teko';
+                ctx.fillText(IPL_TEAMS[i].id, -ctx.measureText(IPL_TEAMS[i].id).width / 2, 0);
+                ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if (isSpinning) return;
+            if (userSquad.length >= 11) {
+                showToast('Squad Full! (11/11 players selected)');
+                return;
+            }
+
+            isSpinning = true;
+            document.getElementById('spinBtn').disabled = true;
+
+            const spinAngleStart = Math.random() * 10 + 10;
+            let spinTime = 0;
+            const spinTimeTotal = Math.random() * 2000 + 3000;
+
+            function rotateWheel() {
+                spinTime += 30;
+                if (spinTime >= spinTimeTotal) {
+                    stopRotateWheel();
+                    return;
+                }
+                const spinAngle = spinAngleStart - easeOut(spinTime, 0, spinAngleStart, spinTimeTotal);
+                startAngle += (spinAngle * Math.PI / 180);
+                drawWheel();
+                spinTimeout = setTimeout(rotateWheel, 30);
+            }
+            rotateWheel();
+        }
+
+        function easeOut(t, b, c, d) {
+            const ts = (t /= d) * t;
+            const tc = ts * t;
+            return b + c * (tc + -3 * ts + 3 * t);
+        }
+
+        function stopRotateWheel() {
+            clearTimeout(spinTimeout);
+            const degrees = startAngle * 180 / Math.PI + 90;
+            const arcd = arc * 180 / Math.PI;
+            const index = Math.floor((360 - degrees % 360) / arcd);
+            
+            currentSpunTeam = IPL_TEAMS[index];
+            isSpinning = false;
+            document.getElementById('spinBtn').disabled = false;
+
+            showTeamSelectionModal(currentSpunTeam);
+        }
+
+        function showTeamSelectionModal(team) {
+            const container = document.getElementById('selectionArea');
+            const optionsBox = document.getElementById('playerOptions');
+            document.getElementById('spunTeamName').innerText = team.name;
+            document.getElementById('spunTeamName').style.color = team.color;
+            
+            container.classList.remove('hidden');
+            optionsBox.innerHTML = '';
+
+            const currentOverseas = userSquad.filter(p => p.overseas).length;
+
+            team.roster.forEach(player => {
+                const alreadySelected = userSquad.some(p => p.name === player.name);
+                const overseasRestricted = player.overseas && currentOverseas >= 4;
+                
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border flex justify-between items-center ${alreadySelected || overseasRestricted ? 'bg-slate-950 border-slate-800 opacity-50' : 'bg-slate-900 border-slate-700 hover:border-amber-400'}`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="font-bold text-slate-100 text-sm">${player.name}</span>
+                            ${player.overseas ? '<span class="text-[10px] bg-cyan-950 text-cyan-400 font-bold px-1.5 py-0.5 rounded border border-cyan-800">OS</span>' : ''}
+                        </div>
+                        <span class="text-xs text-slate-400">${player.role} • ${player.pos}</span>
+                    </div>
+                    ${alreadySelected ? 
+                        '<span class="text-xs text-emerald-400 font-bold">Picked</span>' : 
+                        overseasRestricted ? 
+                        '<span class="text-[10px] text-red-400 font-bold">Max 4 OS</span>' : 
+                        `<button onclick='selectPlayer(${JSON.stringify(player)}, "${team.id}")' class="px-3 py-1 bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-lg transition">Pick</button>`
+                    }
+                `;
+                optionsBox.appendChild(card);
+            });
+
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Auto Boli / Auto Draft Feature to instantly form balanced XI
+        function autoPickCompleteSquad() {
+            userSquad = [];
+            let overseasCount = 0;
+
+            const allPlayers = [];
+            IPL_TEAMS.forEach(team => {
+                team.roster.forEach(p => allPlayers.push({ ...p, teamId: team.id }));
+            });
+
+            // Shuffle array
+            allPlayers.sort(() => 0.5 - Math.random());
+
+            for (let player of allPlayers) {
+                if (userSquad.length >= 11) break;
+                if (player.overseas && overseasCount >= 4) continue;
+
+                userSquad.push(player);
+                if (player.overseas) overseasCount++;
+            }
+
+            autoLineup();
+            showToast('Auto Lineup Complete! 11 Players Auto-Drafted.');
+            document.getElementById('selectionArea').classList.add('hidden');
+        }
+
+        /* ==================== 6. SQUAD SELECTION & AUTO LINEUP ==================== */
+        function selectPlayer(player, teamId) {
+            if (userSquad.length >= 11) {
+                showToast('Squad is already full (11 players)');
+                return;
+            }
+
+            const currentOverseas = userSquad.filter(p => p.overseas).length;
+            if (player.overseas && currentOverseas >= 4) {
+                showToast('Cannot add more than 4 Overseas players!');
+                return;
+            }
+
+            userSquad.push({ ...player, teamId });
+            document.getElementById('selectionArea').classList.add('hidden');
+            showToast(`${player.name} added to squad!`);
+            
+            autoLineup(); // Auto arrange upon selection
+            sendPeerData({ type: 'SYNC_SQUAD', squad: userSquad });
+        }
+
+        function updateSquadUI() {
+            const total = userSquad.length;
+            const overseas = userSquad.filter(p => p.overseas).length;
+
+            document.getElementById('statTotal').innerText = `${total} / 11`;
+            document.getElementById('statOverseas').innerText = `${overseas} / 4`;
+            document.getElementById('squadCountNav').innerText = total;
+
+            const list = document.getElementById('squadList');
+            list.innerHTML = '';
+
+            if (total === 0) {
+                list.innerHTML = '<div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs">No players drafted yet. Spin wheel or click "Auto 11"!</div>';
+                return;
+            }
+
+            userSquad.forEach((p, idx) => {
+                const item = document.createElement('div');
+                item.className = 'bg-slate-900 p-3 rounded-xl border border-slate-800 flex justify-between items-center';
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="w-6 h-6 rounded-full bg-slate-800 text-amber-400 text-xs font-bold flex items-center justify-center">${idx + 1}</span>
+                        <div>
+                            <div class="flex items-center space-x-1.5">
+                                <span class="font-bold text-slate-100 text-sm">${p.name}</span>
+                                ${p.overseas ? '<span class="text-[9px] bg-cyan-950 text-cyan-400 px-1 py-0.5 rounded font-bold border border-cyan-800">OS</span>' : ''}
+                            </div>
+                            <span class="text-xs text-slate-400">${p.role} • ${p.pos}</span>
+                        </div>
+                    </div>
+                    <button onclick="removePlayer(${idx})" class="text-slate-500 hover:text-red-400 p-2 text-xs transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+
+            // Update Match User Status
+            const matchStatus = document.getElementById('matchUserStatus');
+            if (total === 11) {
+                matchStatus.innerText = 'Ready (11 Players Selected)';
+                matchStatus.className = 'text-xs text-emerald-400 font-bold mt-1';
+            } else {
+                matchStatus.innerText = `Draft Pending (${total}/11 Selected)`;
+                matchStatus.className = 'text-xs text-amber-400 mt-1';
+            }
+        }
+
+        function removePlayer(idx) {
+            userSquad.splice(idx, 1);
+            updateSquadUI();
+            sendPeerData({ type: 'SYNC_SQUAD', squad: userSquad });
+            showToast('Player removed from squad');
+        }
+
+        function resetSquad() {
+            userSquad = [];
+            updateSquadUI();
+            sendPeerData({ type: 'SYNC_SQUAD', squad: userSquad });
+            showToast('Squad reset successfully');
+        }
+
+        // Ideal T20 Auto Lineup Logic
+        function autoLineup() {
+            if (userSquad.length === 0) return;
+            const order = { 'Opener': 1, 'Middle Order': 2, 'All-Rounder': 3, 'Bowler': 4 };
+            userSquad.sort((a, b) => (order[a.pos] || 2) - (order[b.pos] || 2));
+            updateSquadUI();
+        }
+
+        /* ==================== 7. MATCH SIMULATOR & CRICBUZZ SCORECARD ENGINE ==================== */
+        function populateOpponents() {
+            const select = document.getElementById('opponentSelect');
+            select.innerHTML = '';
+            IPL_TEAMS.forEach(team => {
+                const opt = document.createElement('option');
+                opt.value = team.id;
+                opt.innerText = `${team.name} (${team.id})`;
+                select.appendChild(opt);
+            });
+        }
+
+        function startMatchSimulation(isOnline = false) {
+            if (userSquad.length < 11) {
+                showToast('Please draft full 11 players before starting match!');
+                return;
+            }
+
+            let oppTeam = null;
+            let oppName = '';
+
+            if (isOnline) {
+                oppTeam = { name: "Friend's Squad", roster: friendSquad };
+                oppName = "Friend's XI";
+            } else {
+                const oppId = document.getElementById('opponentSelect').value;
+                oppTeam = IPL_TEAMS.find(t => t.id === oppId);
+                oppName = oppTeam.name;
+            }
+
+            matchState = {
+                active: true,
+                isOnlineMatch: isOnline,
+                inn: 1,
+                runs: 0,
+                wickets: 0,
+                overs: 0,
+                balls: 0,
+                target: 0,
+                strikerIdx: 0,
+                nonStrikerIdx: 1,
+                bowlerIdx: 10,
+                battingTeam: userSquad.map(p => ({ ...p, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissText: 'not out' })),
+                bowlingTeam: oppTeam.roster.map(p => ({ ...p, overs: 0, balls: 0, runsConceded: 0, wickets: 0 })),
+                oppTeamObj: oppTeam,
+                inn1Batting: [],
+                inn1Bowling: [],
+                inn2Batting: [],
+                inn2Bowling: [],
+                autoInterval: null
+            };
+
+            document.getElementById('matchSetup').classList.add('hidden');
+            document.getElementById('matchDashboard').classList.remove('hidden');
+            document.getElementById('commentaryBox').innerHTML = `<p class="text-amber-400 font-bold">1st Innings Started! User Squad vs ${oppName}.</p>`;
+            
+            switchScorecardTab(1);
+            updateMatchBoard();
+        }
+
+        function simNextBall() {
+            if (!matchState.active) return;
+
+            const outcomes = [0, 1, 2, 3, 4, 6, 'W', 1, 0, 4, 1, 6, 0];
+            const result = outcomes[Math.floor(Math.random() * outcomes.length)];
+            
+            matchState.balls++;
+            const striker = matchState.battingTeam[matchState.strikerIdx];
+            const bowler = matchState.bowlingTeam[matchState.bowlerIdx];
+            
+            bowler.balls++;
+            if (bowler.balls === 6) {
+                bowler.overs++;
+                bowler.balls = 0;
+            }
+
+            let commText = '';
+
+            if (result === 'W') {
+                matchState.wickets++;
+                striker.out = true;
+                striker.balls++;
+                striker.dismissText = `b ${bowler.name}`;
+                bowler.wickets++;
+                commText = `OUT! ${striker.name} departs scoring ${striker.runs}(${striker.balls}). Wicket for ${bowler.name}!`;
+
+                const nextIdx = Math.max(matchState.strikerIdx, matchState.nonStrikerIdx) + 1;
+                if (nextIdx < 11 && matchState.wickets < 10) {
+                    matchState.strikerIdx = nextIdx;
+                }
+            } else {
+                const run = parseInt(result);
+                matchState.runs += run;
+                striker.runs += run;
+                striker.balls++;
+                bowler.runsConceded += run;
+
+                if (run === 4) { striker.fours++; commText = `FOUR! Classical boundary by ${striker.name}!`; }
+                else if (run === 6) { striker.sixes++; commText = `SIX! ${striker.name} launches it into the stands!`; }
+                else commText = `${run} run(s) taken by ${striker.name}.`;
+
+                if (run % 2 !== 0) rotateStrike();
+            }
+
+            if (matchState.balls === 6) {
+                matchState.overs++;
+                matchState.balls = 0;
+                rotateStrike();
+                // Select next bowler from bowler list
+                matchState.bowlerIdx = Math.floor(Math.random() * 5) + 6; // pick lower order bowler
+            }
+
+            const totalOvers = matchState.overs + matchState.balls / 6;
+
+            // Target check for 2nd Innings
+            if (matchState.inn === 2 && matchState.runs >= matchState.target) {
+                saveInningsData();
+                endGame(true);
+                return;
+            }
+
+            // End Innings check
+            if (totalOvers >= 20 || matchState.wickets >= 10) {
+                saveInningsData();
+                if (matchState.inn === 1) {
+                    switchInnings();
+                } else {
+                    endGame(false);
+                }
+                return;
+            }
+
+            appendCommentary(`${matchState.overs}.${matchState.balls} - ${commText}`);
+            updateMatchBoard();
+        }
+
+        function rotateStrike() {
+            const temp = matchState.strikerIdx;
+            matchState.strikerIdx = matchState.nonStrikerIdx;
+            matchState.nonStrikerIdx = temp;
+        }
+
+        function saveInningsData() {
+            if (matchState.inn === 1) {
+                matchState.inn1Batting = JSON.parse(JSON.stringify(matchState.battingTeam));
+                matchState.inn1Bowling = JSON.parse(JSON.stringify(matchState.bowlingTeam));
+            } else {
+                matchState.inn2Batting = JSON.parse(JSON.stringify(matchState.battingTeam));
+                matchState.inn2Bowling = JSON.parse(JSON.stringify(matchState.bowlingTeam));
+            }
+        }
+
+        function switchInnings() {
+            matchState.inn = 2;
+            matchState.target = matchState.runs + 1;
+            matchState.runs = 0;
+            matchState.wickets = 0;
+            matchState.overs = 0;
+            matchState.balls = 0;
+
+            // Swap Batting and Bowling Team
+            const temp = matchState.battingTeam;
+            matchState.battingTeam = matchState.oppTeamObj.roster.map(p => ({ ...p, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissText: 'not out' }));
+            matchState.bowlingTeam = userSquad.map(p => ({ ...p, overs: 0, balls: 0, runsConceded: 0, wickets: 0 }));
+
+            matchState.strikerIdx = 0;
+            matchState.nonStrikerIdx = 1;
+            matchState.bowlerIdx = 10;
+
+            document.getElementById('matchInningsLabel').innerText = '2nd Innings';
+            document.getElementById('matchTargetLabel').innerText = `Target: ${matchState.target}`;
+            appendCommentary(`--- INNINGS BREAK --- Target: ${matchState.target} Runs`);
+            switchScorecardTab(2);
+            updateMatchBoard();
+        }
+
+        function endGame(userWon) {
+            matchState.active = false;
+            if (matchState.autoInterval) clearInterval(matchState.autoInterval);
+
+            const msg = matchState.inn === 2 && userWon ? 
+                `MATCH OVER! Target Chased Successfully!` : 
+                `MATCH OVER! ${userWon ? '1st Innings Team' : 'Defending Team'} Won!`;
+
+            appendCommentary(`🏆 ${msg}`);
+            showToast(msg);
+            document.getElementById('nextBallBtn').disabled = true;
+            updateMatchBoard();
+        }
+
+        function toggleAutoSim() {
+            if (!matchState.active) return;
+            const btn = document.getElementById('autoSimBtn');
+
+            if (matchState.autoInterval) {
+                clearInterval(matchState.autoInterval);
+                matchState.autoInterval = null;
+                btn.classList.remove('bg-amber-500', 'text-slate-950');
+                btn.classList.add('bg-slate-800', 'text-slate-100');
+            } else {
+                matchState.autoInterval = setInterval(() => {
+                    if (matchState.active) simNextBall();
+                    else clearInterval(matchState.autoInterval);
+                }, 150);
+                btn.classList.add('bg-amber-500', 'text-slate-950');
+                btn.classList.remove('bg-slate-800', 'text-slate-100');
+            }
+        }
+
+        function updateMatchBoard() {
+            document.getElementById('battingTeamName').innerText = matchState.inn === 1 ? 'User Squad' : matchState.oppTeamObj.name;
+            document.getElementById('runsScored').innerText = matchState.runs;
+            document.getElementById('wicketsLost').innerText = matchState.wickets;
+            document.getElementById('oversCompleted').innerText = `${matchState.overs}.${matchState.balls}`;
+
+            const totalOversDec = matchState.overs + (matchState.balls / 6);
+            const crr = totalOversDec > 0 ? (matchState.runs / totalOversDec).toFixed(2) : '0.00';
+            docu
